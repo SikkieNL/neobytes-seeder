@@ -1,7 +1,7 @@
-dash-seeder
+neobytes-seeder
 ==============
 
-dash-seeder is a crawler for the Dash network, which exposes a list
+neobytes-seeder is a crawler for the NeoBytes network, which exposes a list
 of reliable nodes via a built-in DNS server.
 
 Features:

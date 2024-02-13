@@ -80,9 +80,8 @@ class CNode {
     CAddress me(CService("0.0.0.0"));
     BeginMessage("version");
     int nBestHeight = GetRequireHeight();
-    string ver = "/dash-seeder:0.14.0.1/";
-    bool fRelay = false;
-    vSend << PROTOCOL_VERSION << nLocalServices << nTime << you << me << nLocalNonce << ver << nBestHeight << fRelay;
+    string ver = "/neobytes-seeder:0.1.1/";
+    vSend << PROTOCOL_VERSION << nLocalServices << nTime << you << me << nLocalNonce << ver << nBestHeight;
     EndMessage();
   }
  
@@ -112,9 +111,6 @@ class CNode {
         vRecv >> strSubVer;
       if (nVersion >= 209 && !vRecv.empty())
         vRecv >> nStartingHeight;
-      bool fRelay;
-      if (nVersion >= 209 && !vRecv.empty())
-        vRecv >> fRelay;
       
       if (nVersion >= 209) {
         BeginMessage("verack");
@@ -302,7 +298,7 @@ bool TestNode(const CService &cip, int &ban, int &clientV, std::string &clientSV
 
 /*
 int main(void) {
-  CService ip("darkcoin.io", 9999, true);
+  CService ip("neobytes.network", 11427, true);
   vector<CAddress> vAddr;
   vAddr.clear();
   int ban = 0;

@@ -422,7 +422,7 @@ extern "C" void* ThreadStats(void*) {
 }
 
 static const string mainnet_seeds[] = {"dnsseed.neobytes.network", ""};
-static const string testnet_seeds[] = {"testnet-dnsseed.neobytes.network", ""};
+static const string testnet_seeds[] = {"testnet-seed.neobytes.network", ""};
 static const string *seeds = mainnet_seeds;
 
 extern "C" void* ThreadSeeder(void*) {

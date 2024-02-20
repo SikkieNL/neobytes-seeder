@@ -81,8 +81,8 @@ class CNode {
     BeginMessage("version");
     int nBestHeight = GetRequireHeight();
     string ver = "/neobytes-seeder:0.1.2/";
-    uint8_t fRelayTxs = 0;
-    vSend << PROTOCOL_VERSION << nLocalServices << nTime << you << me << nLocalNonce << ver << nBestHeight << fRelayTxs;
+    bool fRelay = false;
+    vSend << PROTOCOL_VERSION << nLocalServices << nTime << you << me << nLocalNonce << ver << nBestHeight << fRelay;
     EndMessage();
   }
  
@@ -112,6 +112,9 @@ class CNode {
         vRecv >> strSubVer;
       if (nVersion >= 209 && !vRecv.empty())
         vRecv >> nStartingHeight;
+      bool fRelay;
+      if (nVersion >= 209 && !vRecv.empty())
+        vRecv >> fRelay;
       
       if (nVersion >= 209) {
         BeginMessage("verack");
@@ -275,10 +278,6 @@ public:
   int GetStartingHeight() {
     return nStartingHeight;
   }
-
-  uint64_t GetServices() {
-    return you.nServices;
-  }
 };
 
 bool TestNode(const CService &cip, int &ban, int &clientV, std::string &clientSV, int &blocks, vector<CAddress>* vAddr, uint64_t& services) {
@@ -293,7 +292,6 @@ bool TestNode(const CService &cip, int &ban, int &clientV, std::string &clientSV
     clientV = node.GetClientVersion();
     clientSV = node.GetClientSubVersion();
     blocks = node.GetStartingHeight();
-    services = node.GetServices();
 //  printf("%s: %s!!!\n", cip.ToString().c_str(), ret ? "GOOD" : "BAD");
     return ret;
   } catch(std::ios_base::failure& e) {

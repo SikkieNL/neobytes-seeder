@@ -14,13 +14,16 @@
 
 using namespace std;
 
+bool fSimpleLog = false;
 bool fTestNet = false;
+int nStatsSleepSeconds = 1;
 
 class CDnsSeedOpts {
 public:
   int nThreads;
   int nPort;
   int nDnsThreads;
+  int fUseSimpleLog;
   int fUseTestNet;
   int fWipeBan;
   int fWipeIgnore;
@@ -28,12 +31,11 @@ public:
   const char *ns;
   const char *host;
   const char *tor;
-  const char *ip_addr;
   const char *ipv4_proxy;
   const char *ipv6_proxy;
   std::set<uint64_t> filter_whitelist;
 
-  CDnsSeedOpts() : nThreads(96), nDnsThreads(4), ip_addr("::"), nPort(53), mbox(NULL), ns(NULL), host(NULL), tor(NULL), fUseTestNet(false), fWipeBan(false), fWipeIgnore(false), ipv4_proxy(NULL), ipv6_proxy(NULL) {}
+  CDnsSeedOpts() : nThreads(96), nDnsThreads(4), nPort(53), mbox(NULL), ns(NULL), host(NULL), tor(NULL), fUseSimpleLog(false), fUseTestNet(false), fWipeBan(false), fWipeIgnore(false), ipv4_proxy(NULL), ipv6_proxy(NULL) {}
 
   void ParseCommandLine(int argc, char **argv) {
     static const char *help = "NeoBytes-seeder\n"
@@ -43,14 +45,15 @@ public:
                               "-h <host>       Hostname of the DNS seed\n"
                               "-n <ns>         Hostname of the nameserver\n"
                               "-m <mbox>       E-Mail address reported in SOA records\n"
+                              "-s <seconds>    Number of seconds to sleep before printing stats (default 1)\n"
                               "-t <threads>    Number of crawlers to run in parallel (default 96)\n"
                               "-d <threads>    Number of DNS server threads (default 4)\n"
-                              "-a <address>    Address to listen on (default ::)\n"
                               "-p <port>       UDP port to listen on (default 53)\n"
                               "-o <ip:port>    Tor proxy IP/Port\n"
                               "-i <ip:port>    IPV4 SOCKS5 proxy IP/Port\n"
                               "-k <ip:port>    IPV6 SOCKS5 proxy IP/Port\n"
                               "-w f1,f2,...    Allow these flag combinations as filters\n"
+                              "--simplelog     Do not use advanced stats output, use simple log-like one instead\n"
                               "--testnet       Use testnet\n"
                               "--wipeban       Wipe list of banned nodes\n"
                               "--wipeignore    Wipe list of ignored nodes\n"
@@ -63,22 +66,23 @@ public:
         {"host", required_argument, 0, 'h'},
         {"ns",   required_argument, 0, 'n'},
         {"mbox", required_argument, 0, 'm'},
+        {"seconds", required_argument, 0, 's'},
         {"threads", required_argument, 0, 't'},
         {"dnsthreads", required_argument, 0, 'd'},
-        {"address", required_argument, 0, 'a'},
         {"port", required_argument, 0, 'p'},
         {"onion", required_argument, 0, 'o'},
         {"proxyipv4", required_argument, 0, 'i'},
         {"proxyipv6", required_argument, 0, 'k'},
         {"filter", required_argument, 0, 'w'},
+        {"simplelog", no_argument, &fUseSimpleLog, 1},
         {"testnet", no_argument, &fUseTestNet, 1},
         {"wipeban", no_argument, &fWipeBan, 1},
         {"wipeignore", no_argument, &fWipeBan, 1},
-        {"help", no_argument, 0, 'h'},
+        {"help", no_argument, 0, '?'},
         {0, 0, 0, 0}
       };
       int option_index = 0;
-      int c = getopt_long(argc, argv, "h:n:m:t:a:p:d:o:i:k:w:", long_options, &option_index);
+      int c = getopt_long(argc, argv, "h:n:m:s:t:p:d:o:i:k:w:?", long_options, &option_index);
       if (c == -1) break;
       switch (c) {
         case 'h': {
@@ -95,6 +99,12 @@ public:
           ns = optarg;
           break;
         }
+        
+        case 's': {
+          int n = strtol(optarg, NULL, 10);
+          if (n > 0 && n < 3600) nStatsSleepSeconds = n;
+          break;
+        }
 
         case 't': {
           int n = strtol(optarg, NULL, 10);
@@ -105,18 +115,6 @@ public:
         case 'd': {
           int n = strtol(optarg, NULL, 10);
           if (n > 0 && n < 1000) nDnsThreads = n;
-          break;
-        }
-
-        case 'a': {
-          if (strchr(optarg, ':')==NULL) {
-            char* ip4_addr = (char*) malloc(strlen(optarg)+8);
-            strcpy(ip4_addr, "::FFFF:");
-            strcat(ip4_addr, optarg);
-            ip_addr = ip4_addr;
-          } else {
-            ip_addr = optarg;
-          }
           break;
         }
 
@@ -162,16 +160,10 @@ public:
       }
     }
     if (filter_whitelist.empty()) {
-        filter_whitelist.insert(NODE_NETWORK); // x1
-        filter_whitelist.insert(NODE_NETWORK | NODE_BLOOM); // x5
-        filter_whitelist.insert(NODE_NETWORK | NODE_WITNESS); // x9
-        filter_whitelist.insert(NODE_NETWORK | NODE_WITNESS | NODE_COMPACT_FILTERS); // x49
-       filter_whitelist.insert(NODE_NETWORK | NODE_WITNESS | NODE_BLOOM); // xd
-        filter_whitelist.insert(NODE_NETWORK_LIMITED); // x400
-        filter_whitelist.insert(NODE_NETWORK_LIMITED | NODE_BLOOM); // x404
-        filter_whitelist.insert(NODE_NETWORK_LIMITED | NODE_WITNESS); // x408
-        filter_whitelist.insert(NODE_NETWORK_LIMITED | NODE_WITNESS | NODE_COMPACT_FILTERS); // x448
-        filter_whitelist.insert(NODE_NETWORK_LIMITED | NODE_WITNESS | NODE_BLOOM); // x40c
+        filter_whitelist.insert(1);
+        filter_whitelist.insert(5);
+        filter_whitelist.insert(9);
+        filter_whitelist.insert(13);
     }
     if (host != NULL && ns == NULL) showHelp = true;
     if (showHelp) {
@@ -181,7 +173,9 @@ public:
   }
 };
 
+extern "C" {
 #include "dns.h"
+}
 
 CAddrDb db;
 
@@ -205,9 +199,8 @@ extern "C" void* ThreadCrawler(void* data) {
       res.nClientV = 0;
       res.nHeight = 0;
       res.strClientV = "";
-      res.services = 0;
       bool getaddr = res.ourLastSuccess + 86400 < now;
-      res.fGood = TestNode(res.service,res.nBanTime,res.nClientV,res.strClientV,res.nHeight,getaddr ? &addr : NULL, res.services);
+      res.fGood = TestNode(res.service,res.nBanTime,res.nClientV,res.strClientV,res.nHeight,getaddr ? &addr : NULL);
     }
     db.ResultMany(ips);
     db.Add(addr);
@@ -279,7 +272,6 @@ public:
     dns_opt.datattl = 3600;
     dns_opt.nsttl = 40000;
     dns_opt.cb = GetIPList;
-    dns_opt.addr = opts->ip_addr;
     dns_opt.port = opts->nPort;
     dns_opt.nRequests = 0;
     dbQueries = 0;
@@ -362,6 +354,7 @@ extern "C" void* ThreadDumper(void*) {
         count++;
     {
       vector<CAddrReport> v = db.GetAll();
+      if (v.empty()) continue;
       sort(v.begin(), v.end(), StatCompare);
       FILE *f = fopen("dnsseed.dat.new","w+");
       if (f) {
@@ -372,6 +365,10 @@ extern "C" void* ThreadDumper(void*) {
         rename("dnsseed.dat.new", "dnsseed.dat");
       }
       FILE *d = fopen("dnsseed.dump", "w");
+      if (!d) {
+        perror("fopen(dnsseed.dump, w)");
+        continue;
+      }
       fprintf(d, "# address                                        good  lastSuccess    %%(2h)   %%(8h)   %%(1d)   %%(7d)  %%(30d)  blocks      svcs  version\n");
       double stat[5]={0,0,0,0,0};
       for (vector<CAddrReport>::const_iterator it = v.begin(); it < v.end(); it++) {
@@ -385,6 +382,10 @@ extern "C" void* ThreadDumper(void*) {
       }
       fclose(d);
       FILE *ff = fopen("dnsstats.log", "a");
+      if (!ff) {
+        perror("fopen(ddnsstats.log, a)");
+        continue;
+      }
      fprintf(ff, "%llu %g %g %g %g %g\n", (unsigned long long)(time(NULL)), stat[0], stat[1], stat[2], stat[3], stat[4]);
       fclose(ff);
     }
@@ -401,6 +402,7 @@ extern "C" void* ThreadStats(void*) {
     strftime(c, 256, "[%y-%m-%d %H:%M:%S]", tmp);
     CAddrDbStats stats;
     db.GetStats(stats);
+    if (!fSimpleLog) {
       if (first)
       {
         first = false;
@@ -409,6 +411,7 @@ extern "C" void* ThreadStats(void*) {
       else
         printf("\x1b[2K\x1b[u");
       printf("\x1b[s");
+    }
     uint64_t requests = 0;
     uint64_t queries = 0;
     for (unsigned int i=0; i<dnsThread.size(); i++) {
@@ -416,7 +419,10 @@ extern "C" void* ThreadStats(void*) {
       queries += dnsThread[i]->dbQueries;
     }
     printf("%s %i/%i available (%i tried in %is, %i new, %i active), %i banned; %llu DNS requests, %llu db queries", c, stats.nGood, stats.nAvail, stats.nTracked, stats.nAge, stats.nNew, stats.nAvail - stats.nTracked - stats.nNew, stats.nBanned, (unsigned long long)requests, (unsigned long long)queries);
-    Sleep(1000);
+    if (fSimpleLog) {
+      printf("\n");
+    }
+    Sleep(nStatsSleepSeconds * 1000);
   } while(1);
   return nullptr;
 }
@@ -426,8 +432,12 @@ static const string testnet_seeds[] = {"testnet-seed.neobytes.network", ""};
 static const string *seeds = mainnet_seeds;
 
 extern "C" void* ThreadSeeder(void*) {
-  if (!fTestNet){
-    db.Add(CService("neobytes.network", 11427), true);
+  // When all seeders are down we need some reliable nodes to get initial addresses from.
+  // Uncomment corresponding line and replace "some...ip" string with an IP of a good peer.
+  if (fTestNet) {
+     // db.Add(CService("neobytes.network", 12427), true); -
+  } else {
+    // db.Add(CService("neobytes.network", 11427), true);
   }
   do {
     for (int i=0; seeds[i] != ""; i++) {
@@ -476,6 +486,7 @@ int main(int argc, char **argv) {
       SetProxy(NET_IPV6, service);
     }
   }
+  fSimpleLog = opts.fUseSimpleLog;
   bool fDNS = true;
   if (opts.fUseTestNet) {
       printf("Using testnet.\n");

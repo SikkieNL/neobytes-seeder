@@ -81,8 +81,7 @@ class CNode {
     BeginMessage("version");
     int nBestHeight = GetRequireHeight();
     string ver = "/neobytes-seeder:0.1.2/";
-    bool fRelay = false;
-    vSend << PROTOCOL_VERSION << nLocalServices << nTime << you << me << nLocalNonce << ver << nBestHeight << fRelay;
+    vSend << PROTOCOL_VERSION << nLocalServices << nTime << you << me << nLocalNonce << ver << nBestHeight;
     EndMessage();
   }
  
@@ -112,9 +111,6 @@ class CNode {
         vRecv >> strSubVer;
       if (nVersion >= 209 && !vRecv.empty())
         vRecv >> nStartingHeight;
-      bool fRelay;
-      if (nVersion >= 209 && !vRecv.empty())
-        vRecv >> fRelay;
       
       if (nVersion >= 209) {
         BeginMessage("verack");

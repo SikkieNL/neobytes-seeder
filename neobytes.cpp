@@ -280,7 +280,7 @@ public:
   }
 };
 
-bool TestNode(const CService &cip, int &ban, int &clientV, std::string &clientSV, int &blocks, vector<CAddress>* vAddr, uint64_t& services) {
+bool TestNode(const CService &cip, int &ban, int &clientV, std::string &clientSV, int &blocks, vector<CAddress>* vAddr) {
   try {
     CNode node(cip, vAddr);
     bool ret = node.Run();

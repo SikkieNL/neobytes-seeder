@@ -81,8 +81,8 @@ class CNode {
     BeginMessage("version");
     int nBestHeight = GetRequireHeight();
     string ver = "/neobytes-seeder:0.1.2/";
-    uint8_t fRelayTxs = 0;
-    vSend << PROTOCOL_VERSION << nLocalServices << nTime << you << me << nLocalNonce << ver << nBestHeight << fRelayTxs;
+    bool fRelay = false;
+    vSend << PROTOCOL_VERSION << nLocalServices << nTime << you << me << nLocalNonce << ver << nBestHeight << fRelay;
     EndMessage();
   }
  
@@ -112,6 +112,9 @@ class CNode {
         vRecv >> strSubVer;
       if (nVersion >= 209 && !vRecv.empty())
         vRecv >> nStartingHeight;
+      bool fRelay;
+      if (nVersion >= 209 && !vRecv.empty())
+        vRecv >> fRelay;
       
       if (nVersion >= 209) {
         BeginMessage("verack");
@@ -221,11 +224,9 @@ public:
     int64 now;
     while (now = time(NULL), ban == 0 && (doneAfter == 0 || doneAfter > now) && sock != INVALID_SOCKET) {
       char pchBuf[0x10000];
-      fd_set read_set, except_set;
-      FD_ZERO(&read_set);
-      FD_ZERO(&except_set);
-      FD_SET(sock,&read_set);
-      FD_SET(sock,&except_set);
+      fd_set set;
+      FD_ZERO(&set);
+      FD_SET(sock,&set);
       struct timeval wa;
       if (doneAfter) {
         wa.tv_sec = doneAfter - now;
@@ -234,7 +235,7 @@ public:
         wa.tv_sec = GetTimeout();
         wa.tv_usec = 0;
       }
-      int ret = select(sock+1, &read_set, NULL, &except_set, &wa);
+      int ret = select(sock+1, &set, NULL, &set, &wa);
       if (ret != 1) {
         if (!doneAfter) res = false;
         break;
@@ -277,13 +278,9 @@ public:
   int GetStartingHeight() {
     return nStartingHeight;
   }
-
-  uint64_t GetServices() {
-    return you.nServices;
-  }
 };
 
-bool TestNode(const CService &cip, int &ban, int &clientV, std::string &clientSV, int &blocks, vector<CAddress>* vAddr, uint64_t& services) {
+bool TestNode(const CService &cip, int &ban, int &clientV, std::string &clientSV, int &blocks, vector<CAddress>* vAddr) {
   try {
     CNode node(cip, vAddr);
     bool ret = node.Run();
@@ -295,7 +292,6 @@ bool TestNode(const CService &cip, int &ban, int &clientV, std::string &clientSV
     clientV = node.GetClientVersion();
     clientSV = node.GetClientSubVersion();
     blocks = node.GetStartingHeight();
-    services = node.GetServices();
 //  printf("%s: %s!!!\n", cip.ToString().c_str(), ret ? "GOOD" : "BAD");
     return ret;
   } catch(std::ios_base::failure& e) {
@@ -306,7 +302,7 @@ bool TestNode(const CService &cip, int &ban, int &clientV, std::string &clientSV
 
 /*
 int main(void) {
-  CService ip("neobytes.network", 11427, true);
+  CService ip("neobytes.tools", 11427, true);
   vector<CAddress> vAddr;
   vAddr.clear();
   int ban = 0;

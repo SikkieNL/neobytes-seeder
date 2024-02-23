@@ -22,25 +22,24 @@ $ sudo apt-get install build-essential libboost-all-dev libssl-dev
 USAGE
 -----
 
-Assuming you want to run a dns seed on dnsseed.neobytes.network, you will
-need an authorative NS record in neobytes.network domain record, pointing
-to for example vps.neobytes.network:
+Assuming you want to run a dns seed on dnsseed.example.com, you will
+need an authorative NS record in example.com's domain record, pointing
+to for example vps.example.com:
 
-$ dig -t NS dnsseed.neobytes.network
+$ dig -t NS dnsseed.example.com
 
 ;; ANSWER SECTION
-dnsseed.neobytes.network.   86400    IN      NS     vps.neobytes.network.
+dnsseed.example.com.   86400    IN      NS     vps.example.com.
 
-On the system vps.neobytes.network, you can now run dnsseed:
+On the system vps.example.com, you can now run dnsseed:
 
-./dnsseed -h dnsseed.neobytes.network -n vps.neobytes.network
+./dnsseed -h dnsseed.example.com -n vps.example.com
 
 If you want the DNS server to report SOA records, please provide an
 e-mail address (with the @ part replaced by .) using -m.
 
 COMPILING
 ---------
-
 Compiling will require boost and ssl.  On debian systems, these are provided
 by `libboost-dev` and `libssl-dev` respectively.
 

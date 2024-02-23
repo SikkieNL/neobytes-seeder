@@ -183,7 +183,6 @@ public:
 
 struct CServiceResult {
     CService service;
-    uint64_t services;
     bool fGood;
     int nBanTime;
     int nHeight;
@@ -216,7 +215,7 @@ protected:
   void Add_(const CAddress &addr, bool force);   // add an address
   bool Get_(CServiceResult &ip, int& wait);      // get an IP to test (must call Good_, Bad_, or Skipped_ on result afterwards)
   bool GetMany_(std::vector<CServiceResult> &ips, int max, int& wait);
-  void Good_(const CService &ip, int clientV, std::string clientSV, int blocks, uint64_t services); // mark an IP as good (must have been returned by Get_)
+  void Good_(const CService &ip, int clientV, std::string clientSV, int blocks); // mark an IP as good (must have been returned by Get_)
   void Bad_(const CService &ip, int ban);  // mark an IP as bad (and optionally ban it) (must have been returned by Get_)
   void Skipped_(const CService &ip);       // mark an IP as skipped (must have been returned by Get_)
   int Lookup_(const CService &ip);         // look up id of an IP
@@ -232,7 +231,7 @@ public:
       stats.nTracked = ourId.size();
       stats.nGood = goodId.size();
       stats.nNew = unkId.size();
-      stats.nAge = time(NULL) - idToInfo[ourId[0]].ourLastTry;
+      stats.nAge = ourId.empty() ? -1 : (time(NULL) - idToInfo[ourId[0]].ourLastTry);
     }
   }
 
@@ -246,9 +245,10 @@ public:
     std::vector<CAddrReport> ret;
     SHARED_CRITICAL_BLOCK(cs) {
       for (std::deque<int>::const_iterator it = ourId.begin(); it != ourId.end(); it++) {
-        const CAddrInfo &info = idToInfo[*it];
-        if (info.success > 0) {
-          ret.push_back(info.GetReport());
+        const auto itInfo = idToInfo.find(*it);
+        if (itInfo == idToInfo.end()) continue;
+        if (itInfo->second.success > 0) {
+          ret.push_back(itInfo->second.GetReport());
         }
       }
     }
@@ -282,7 +282,7 @@ public:
       } else {
         CAddrDb *db = const_cast<CAddrDb*>(this);
         db->nId = 0;
-        int n = 0;
+        int n;
         READWRITE(n);
         for (int i=0; i<n; i++) {
           CAddrInfo info;
@@ -314,9 +314,9 @@ public:
       for (int i=0; i<vAddr.size(); i++)
         Add_(vAddr[i], fForce);
   }
-  void Good(const CService &addr, int clientVersion, std::string clientSubVersion, int blocks, uint64_t services) {
+  void Good(const CService &addr, int clientVersion, std::string clientSubVersion, int blocks) {
     CRITICAL_BLOCK(cs)
-      Good_(addr, clientVersion, clientSubVersion, blocks, services);
+      Good_(addr, clientVersion, clientSubVersion, blocks);
   }
   void Skipped(const CService &addr) {
     CRITICAL_BLOCK(cs)
@@ -329,7 +329,6 @@ public:
   bool Get(CServiceResult &ip, int& wait) {
     CRITICAL_BLOCK(cs)
       return Get_(ip, wait);
-      return false;
   }
   void GetMany(std::vector<CServiceResult> &ips, int max, int& wait) {
     CRITICAL_BLOCK(cs) {
@@ -346,7 +345,7 @@ public:
     CRITICAL_BLOCK(cs) {
       for (int i=0; i<ips.size(); i++) {
         if (ips[i].fGood) {
-          Good_(ips[i].service, ips[i].nClientV, ips[i].strClientV, ips[i].nHeight, ips[i].services);
+          Good_(ips[i].service, ips[i].nClientV, ips[i].strClientV, ips[i].nHeight);
         } else {
           Bad_(ips[i].service, ips[i].nBanTime);
         }
